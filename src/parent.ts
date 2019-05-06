@@ -15,10 +15,6 @@ const child = spawn('node', ['./lib/child.js'], {
 const writable = child.stdio[3] as streams.Writable;
 const readable = child.stdio[3] as streams.Readable;
 
-if (!writable || !readable) {
-  throw new Error('Cannot get the child process pipe');
-}
-
 const write = bindNodeCallback(writable.write.bind(writable) as ((
   data: Buffer,
   cb: (err: Error | null) => void
