@@ -5,7 +5,7 @@ import streams from 'stream';
 import { streamToRx } from 'rxjs-stream';
 
 // size of a raw RGB image plus some extra
-const EXPECTED_BUFFER_SIZE = 640 * 480 * 4 + 2 * 8;
+const EXPECTED_BUFFER_SIZE = 3840 * 2160 * 4 + 2 * 8;
 const FPS = 30;
 
 const child = spawn('node', ['./lib/child.js'], {
@@ -15,10 +15,12 @@ const child = spawn('node', ['./lib/child.js'], {
 const writable = child.stdio[3] as streams.Writable;
 const readable = child.stdio[3] as streams.Readable;
 
-const write = bindNodeCallback(writable.write.bind(writable) as ((
-  data: Buffer,
-  cb: (err: Error | null) => void
-) => boolean));
+const write = bindNodeCallback(
+  writable.write.bind(writable) as (
+    data: Buffer,
+    cb: (err: Error | null) => void
+  ) => boolean
+);
 
 function createDataBlock(): Buffer {
   const buff = Buffer.alloc(EXPECTED_BUFFER_SIZE);
@@ -30,12 +32,12 @@ function createDataBlock(): Buffer {
 timer(0, 1000 / FPS)
   .pipe(
     map(() => createDataBlock()),
-    mergeMap(data => {
+    mergeMap((data) => {
       return write(data);
     })
   )
   .subscribe({
-    error: err => console.error('Ooops! Something went wrong!', err),
+    error: (err) => console.error('Ooops! Something went wrong!', err),
   });
 
 interface ITimeStat {
@@ -53,12 +55,10 @@ interface ITimeStatSummary {
 
 Buffer.poolSize = EXPECTED_BUFFER_SIZE;
 
-function avgNext(acc: number, b: number) {
-  return acc === 0 ? b : (acc + b) / 2;
-}
+const STATS_EVERY = 5000;
 
 const roundtrimTimes = streamToRx(readable).pipe(
-  map(buffer => {
+  map((buffer) => {
     const start = buffer.readDoubleBE(0);
     const oneWay = buffer.readDoubleBE(8);
     const now = Date.now();
@@ -69,16 +69,16 @@ const roundtrimTimes = streamToRx(readable).pipe(
     };
     return result;
   }),
-  windowTime(30000),
-  mergeMap(times =>
+  windowTime(STATS_EVERY),
+  mergeMap((times) =>
     times.pipe(
       //
       reduce<ITimeStat, ITimeStatSummary>(
         (acc, val) => {
           const result: ITimeStatSummary = {
             start: Math.min(acc.start, val.start),
-            oneWay: avgNext(acc.oneWay, val.oneWay),
-            took: avgNext(acc.took, val.took),
+            oneWay: acc.oneWay + val.oneWay,
+            took: acc.took + val.took,
             totalMessages: acc.totalMessages + 1,
           };
           return result;
@@ -95,5 +95,11 @@ const roundtrimTimes = streamToRx(readable).pipe(
 );
 
 roundtrimTimes.subscribe({
-  next: time => console.log('stats:', time),
+  next: (time) =>
+    console.log('stats:', {
+      ...time,
+      oneWay: time.oneWay / time.totalMessages,
+      took: time.oneWay / time.took,
+      fps: time.totalMessages / (STATS_EVERY / 1000),
+    }),
 });

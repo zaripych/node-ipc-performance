@@ -28,11 +28,11 @@
     }
   },
   "dependencies": {
-    "rxjs": "6.5.1",
-    "rxjs-stream": "3.0.1"
+    "rxjs": "6.6.3",
+    "rxjs-stream": "3.2.1"
   },
   "devDependencies": {
-    "husky": "2.1.0",
-    "ts-deps": "0.3.4"
+    "husky": "4.3.0",
+    "ts-deps": "0.18.4"
   }
 }
